@@ -1,7 +1,18 @@
 package tests;
 
-import box2dLight.*;
-import com.badlogic.gdx.*;
+import box2dLight.ChainLight;
+import box2dLight.ConeLight;
+import box2dLight.DirectionalLight;
+import box2dLight.Light;
+import box2dLight.LightData;
+import box2dLight.PointLight;
+import box2dLight.RayHandler;
+import box2dLight.RayHandlerOptions;
+import com.badlogic.gdx.Application;
+import com.badlogic.gdx.ApplicationListener;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -13,17 +24,23 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
-import com.badlogic.gdx.physics.box2d.*;
+import com.badlogic.gdx.physics.box2d.Body;
+import com.badlogic.gdx.physics.box2d.BodyDef;
 import com.badlogic.gdx.physics.box2d.BodyDef.BodyType;
+import com.badlogic.gdx.physics.box2d.ChainShape;
+import com.badlogic.gdx.physics.box2d.Fixture;
+import com.badlogic.gdx.physics.box2d.FixtureDef;
+import com.badlogic.gdx.physics.box2d.PolygonShape;
+import com.badlogic.gdx.physics.box2d.QueryCallback;
+import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.physics.box2d.joints.MouseJoint;
 import com.badlogic.gdx.physics.box2d.joints.MouseJointDef;
-
 import java.util.ArrayList;
 
 public class Box2dLightTest2 extends InputAdapter implements ApplicationListener {
 
     static final int RAYS_PER_BALL = 128;
-    static final int BALLSNUM = 5;
+    static final int NUM_BALLS = 5;
     static final float LIGHT_DISTANCE = 16f;
     static final float RADIUS = 1f;
 
@@ -34,51 +51,36 @@ public class Box2dLightTest2 extends InputAdapter implements ApplicationListener
     private final static int MIN_FPS = 15;
     private final static float MAX_STEPS = 1f + (float) MAX_FPS / MIN_FPS;
     private final static float MAX_TIME_PER_FRAME = TIME_STEP * MAX_STEPS;
-    private final static int VELOCITY_ITERS = 6;
-    private final static int POSITION_ITERS = 2;
+    private final static int VELOCITY_ITERATIONS = 6;
+    private final static int POSITION_ITERATIONS = 2;
     OrthographicCamera camera;
     SpriteBatch batch;
     BitmapFont font;
     TextureRegion textureRegion;
     Texture bg;
-    /**
-     * our box2D world
-     **/
+
     World world;
-    /**
-     * our boxes
-     **/
-    ArrayList<Body> balls = new ArrayList<Body>(BALLSNUM);
-    /**
-     * our ground box
-     **/
+
+    ArrayList<Body> balls = new ArrayList<>(NUM_BALLS);
+
     Body groundBody;
-    /**
-     * our mouse joint
-     **/
+
     MouseJoint mouseJoint = null;
-    /**
-     * a hit body
-     **/
+
     Body hitBody = null;
-    /**
-     * pixel perfect projection for font rendering
-     */
+
+    // pixel perfect projection which is used for font rendering
     Matrix4 normalProjection = new Matrix4();
     boolean showText = true;
-    /**
-     * BOX2D LIGHT STUFF
-     */
+
     RayHandler rayHandler;
-    ArrayList<Light> lights = new ArrayList<>(BALLSNUM);
+    ArrayList<Light> lights = new ArrayList<>(NUM_BALLS);
     float sunDirection = -90f;
     float physicsTimeLeft;
     long aika;
     int times;
-    /**
-     * we instantiate this vector and the callback here so we don't irritate the
-     * GC
-     **/
+
+    // we instantiate this vector and the callback here so we don't irritate the GC
     Vector3 testPoint = new Vector3();
     QueryCallback callback = new QueryCallback() {
         @Override
@@ -97,7 +99,7 @@ public class Box2dLightTest2 extends InputAdapter implements ApplicationListener
     //  another temporary vector
     Vector2 target = new Vector2();
     /**
-     * Type of lights to use:
+     * This test introduces 4 types of lights:
      * 0 - PointLight
      * 1 - ConeLight
      * 2 - ChainLight
@@ -118,15 +120,13 @@ public class Box2dLightTest2 extends InputAdapter implements ApplicationListener
         font = new BitmapFont();
         font.setColor(Color.RED);
 
-        textureRegion = new TextureRegion(new Texture(
-                Gdx.files.internal("test/data/marble.png")));
+        textureRegion = new TextureRegion(new Texture(Gdx.files.internal("test/data/marble.png")));
         bg = new Texture(Gdx.files.internal("test/data/bg.png"));
 
         createPhysicsWorld();
         Gdx.input.setInputProcessor(this);
 
-        normalProjection.setToOrtho2D(
-                0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        normalProjection.setToOrtho2D(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 
         RayHandlerOptions options = new RayHandlerOptions();
         options.setDiffuse(true);
@@ -161,22 +161,22 @@ public class Box2dLightTest2 extends InputAdapter implements ApplicationListener
         batch.setProjectionMatrix(camera.combined);
         batch.disableBlending();
         batch.begin();
-        {
-            batch.draw(bg, -viewportWidth / 2f, 0, viewportWidth, viewportHeight);
-            batch.enableBlending();
-            for (int i = 0; i < BALLSNUM; i++) {
-                Body ball = balls.get(i);
-                Vector2 position = ball.getPosition();
-                float angle = MathUtils.radiansToDegrees * ball.getAngle();
-                batch.draw(
-                        textureRegion,
-                        position.x - RADIUS, position.y - RADIUS,
-                        RADIUS, RADIUS,
-                        RADIUS * 2, RADIUS * 2,
-                        1f, 1f,
-                        angle);
-            }
+
+        batch.draw(bg, -viewportWidth / 2f, 0, viewportWidth, viewportHeight);
+        batch.enableBlending();
+        for (int i = 0; i < NUM_BALLS; i++) {
+            Body ball = balls.get(i);
+            Vector2 position = ball.getPosition();
+            float angle = MathUtils.radiansToDegrees * ball.getAngle();
+            batch.draw(
+                    textureRegion,
+                    position.x - RADIUS, position.y - RADIUS,
+                    RADIUS, RADIUS,
+                    RADIUS * 2, RADIUS * 2,
+                    1f, 1f,
+                    angle);
         }
+
         batch.end();
 
         rayHandler.setCombinedMatrix(camera);
@@ -196,43 +196,18 @@ public class Box2dLightTest2 extends InputAdapter implements ApplicationListener
             batch.setProjectionMatrix(normalProjection);
             batch.begin();
 
-            font.draw(batch,
-                    "F1 - PointLight",
-                    0, Gdx.graphics.getHeight());
-            font.draw(batch,
-                    "F2 - ConeLight",
-                    0, Gdx.graphics.getHeight() - 15);
-            font.draw(batch,
-                    "F3 - ChainLight",
-                    0, Gdx.graphics.getHeight() - 30);
-            font.draw(batch,
-                    "F4 - DirectionalLight",
-                    0, Gdx.graphics.getHeight() - 45);
-            font.draw(batch,
-                    "F5 - random lights colors",
-                    0, Gdx.graphics.getHeight() - 75);
-            font.draw(batch,
-                    "F6 - random lights distance",
-                    0, Gdx.graphics.getHeight() - 90);
-            font.draw(batch,
-                    "F9 - default blending (1.3)",
-                    0, Gdx.graphics.getHeight() - 120);
-            font.draw(batch,
-                    "F10 - over-burn blending (default in 1.2)",
-                    0, Gdx.graphics.getHeight() - 135);
-            font.draw(batch,
-                    "F11 - some other blending",
-                    0, Gdx.graphics.getHeight() - 150);
+            font.draw(batch, "F1 - PointLight", 0, Gdx.graphics.getHeight());
+            font.draw(batch, "F2 - ConeLight", 0, Gdx.graphics.getHeight() - 15);
+            font.draw(batch, "F3 - ChainLight", 0, Gdx.graphics.getHeight() - 30);
+            font.draw(batch, "F4 - DirectionalLight", 0, Gdx.graphics.getHeight() - 45);
+            font.draw(batch, "F5 - random lights colors", 0, Gdx.graphics.getHeight() - 75);
+            font.draw(batch, "F6 - random lights distance", 0, Gdx.graphics.getHeight() - 90);
+            font.draw(batch, "F9 - default blending (1.3)", 0, Gdx.graphics.getHeight() - 120);
+            font.draw(batch, "F10 - over-burn blending (default in 1.2)", 0, Gdx.graphics.getHeight() - 135);
+            font.draw(batch, "F11 - some other blending", 0, Gdx.graphics.getHeight() - 150);
 
-            font.draw(batch,
-                    "F12 - toggle help text",
-                    0, Gdx.graphics.getHeight() - 180);
-
-            font.draw(batch,
-                    Integer.toString(Gdx.graphics.getFramesPerSecond())
-                            + "mouse at shadows: " + atShadow
-                            + " time used for shadow calculation:"
-                            + aika / ++times + "ns", 0, 20);
+            font.draw(batch, "F12 - toggle help text", 0, Gdx.graphics.getHeight() - 180);
+            font.draw(batch, Gdx.graphics.getFramesPerSecond() + "mouse at shadows: " + atShadow + " time used for shadow calculation:" + aika / ++times + "ns", 0, 20);
 
             batch.end();
         }
@@ -250,7 +225,7 @@ public class Box2dLightTest2 extends InputAdapter implements ApplicationListener
 
     void initPointLights() {
         clearLights();
-        for (int i = 0; i < BALLSNUM; i++) {
+        for (int i = 0; i < NUM_BALLS; i++) {
             PointLight light = new PointLight(
                     rayHandler, RAYS_PER_BALL, null, LIGHT_DISTANCE, 0f, 0f);
             light.attachToBody(balls.get(i), RADIUS / 2f, RADIUS / 2f);
@@ -266,7 +241,7 @@ public class Box2dLightTest2 extends InputAdapter implements ApplicationListener
 
     void initConeLights() {
         clearLights();
-        for (int i = 0; i < BALLSNUM; i++) {
+        for (int i = 0; i < NUM_BALLS; i++) {
             ConeLight light = new ConeLight(
                     rayHandler, RAYS_PER_BALL, null, LIGHT_DISTANCE,
                     0, 0, 0f, MathUtils.random(15f, 40f));
@@ -284,7 +259,7 @@ public class Box2dLightTest2 extends InputAdapter implements ApplicationListener
 
     void initChainLights() {
         clearLights();
-        for (int i = 0; i < BALLSNUM; i++) {
+        for (int i = 0; i < NUM_BALLS; i++) {
             ChainLight light = new ChainLight(
                     rayHandler, RAYS_PER_BALL, null, LIGHT_DISTANCE, 1,
                     new float[]{-5, 0, 0, 3, 5, 0});
@@ -306,8 +281,7 @@ public class Box2dLightTest2 extends InputAdapter implements ApplicationListener
         groundBody.setActive(false);
         sunDirection = MathUtils.random(0f, 360f);
 
-        DirectionalLight light = new DirectionalLight(
-                rayHandler, 4 * RAYS_PER_BALL, new Color(1, 1, 1, 0.5f), sunDirection);
+        DirectionalLight light = new DirectionalLight(rayHandler, 4 * RAYS_PER_BALL, new Color(1, 1, 1, 0.5f), sunDirection);
         light.setHeight(0);
         lights.add(light);
     }
@@ -319,7 +293,7 @@ public class Box2dLightTest2 extends InputAdapter implements ApplicationListener
 
         boolean stepped = false;
         while (physicsTimeLeft >= TIME_STEP) {
-            world.step(TIME_STEP, VELOCITY_ITERS, POSITION_ITERS);
+            world.step(TIME_STEP, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
             physicsTimeLeft -= TIME_STEP;
             stepped = true;
         }
@@ -356,7 +330,7 @@ public class Box2dLightTest2 extends InputAdapter implements ApplicationListener
         BodyDef boxBodyDef = new BodyDef();
         boxBodyDef.type = BodyType.DynamicBody;
 
-        for (int i = 0; i < BALLSNUM; i++) {
+        for (int i = 0; i < NUM_BALLS; i++) {
             // Create the BodyDef, set a random position above the
             // ground and create a new body
             boxBodyDef.position.x = -20 + (float) (Math.random() * 40);
@@ -404,9 +378,7 @@ public class Box2dLightTest2 extends InputAdapter implements ApplicationListener
         // if a mouse joint exists we simply update
         // the target of the joint based on the new
         // mouse coordinates
-        if (mouseJoint != null) {
-            mouseJoint.setTarget(target);
-        }
+        if (mouseJoint != null) mouseJoint.setTarget(target);
         return false;
     }
 
