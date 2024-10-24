@@ -36,36 +36,36 @@ import com.badlogic.gdx.physics.box2d.joints.MouseJoint
 import com.badlogic.gdx.physics.box2d.joints.MouseJointDef
 
 class Box2dLightTest2 : InputAdapter(), ApplicationListener {
-    var camera: OrthographicCamera? = null
-    var batch: SpriteBatch? = null
-    var font: BitmapFont? = null
-    var textureRegion: TextureRegion? = null
-    var bg: Texture? = null
+    private var camera: OrthographicCamera? = null
+    private var batch: SpriteBatch? = null
+    private var font: BitmapFont? = null
+    private var textureRegion: TextureRegion? = null
+    private var bg: Texture? = null
 
-    var world: World? = null
+    private var world: World? = null
 
-    var balls: ArrayList<Body> = ArrayList(NUM_BALLS)
+    private var balls: ArrayList<Body> = ArrayList(NUM_BALLS)
 
-    var groundBody: Body? = null
+    private var groundBody: Body? = null
 
-    var mouseJoint: MouseJoint? = null
+    private var mouseJoint: MouseJoint? = null
 
-    var hitBody: Body? = null
+    private var hitBody: Body? = null
 
     // pixel perfect projection which is used for font rendering
-    var normalProjection: Matrix4 = Matrix4()
-    var showText: Boolean = true
+    private var normalProjection: Matrix4 = Matrix4()
+    private var showText: Boolean = true
 
-    var rayHandler: RayHandler? = null
-    var lights: ArrayList<Light> = ArrayList(NUM_BALLS)
-    var sunDirection: Float = -90f
-    var physicsTimeLeft: Float = 0f
-    var aika: Long = 0
+    private var rayHandler: RayHandler? = null
+    private var lights: ArrayList<Light> = ArrayList(NUM_BALLS)
+    private var sunDirection: Float = -90f
+    private var physicsTimeLeft: Float = 0f
+    private var aika: Long = 0
     var times: Int = 0
 
     // we instantiate this vector and the callback here so we don't irritate the GC
-    var testPoint: Vector3 = Vector3()
-    var callback: QueryCallback = QueryCallback { fixture ->
+    private var testPoint: Vector3 = Vector3()
+    private var callback: QueryCallback = QueryCallback { fixture ->
         if (fixture.body === groundBody) return@QueryCallback true
         if (fixture.testPoint(testPoint.x, testPoint.y)) {
             hitBody = fixture.body
@@ -74,7 +74,7 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
     }
 
     //  another temporary vector
-    var target: Vector2 = Vector2()
+    private var target: Vector2 = Vector2()
 
     /**
      * This test introduces 4 types of lights:
@@ -83,14 +83,14 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
      * 2 - ChainLight
      * 3 - DirectionalLight
      */
-    var lightsType: Int = 0
+    private var lightsType: Int = 0
 
     override fun create() {
         Gdx.app.logLevel = Application.LOG_DEBUG
         MathUtils.random.setSeed(Long.MIN_VALUE)
 
-        camera = OrthographicCamera(viewportWidth, viewportHeight)
-        camera!!.position[0f, viewportHeight / 2f] = 0f
+        camera = OrthographicCamera(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
+        camera!!.position[0f, VIEWPORT_HEIGHT / 2f] = 0f
         camera!!.update()
 
         batch = SpriteBatch()
@@ -141,7 +141,7 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
         batch!!.disableBlending()
         batch!!.begin()
 
-        batch!!.draw(bg, -viewportWidth / 2f, 0f, viewportWidth, viewportHeight)
+        batch!!.draw(bg, -VIEWPORT_WIDTH / 2f, 0f, VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
         batch!!.enableBlending()
         for (i in 0 until NUM_BALLS) {
             val ball = balls[i]
@@ -225,8 +225,8 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
         }
     }
 
-    fun clearLights() {
-        if (!lights.isEmpty()) {
+    private fun clearLights() {
+        if (lights.isNotEmpty()) {
             for (light in lights) {
                 light.remove()
             }
@@ -235,7 +235,7 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
         groundBody!!.isActive = true
     }
 
-    fun initPointLights() {
+    private fun initPointLights() {
         clearLights()
         for (i in 0 until NUM_BALLS) {
             val light = PointLight(
@@ -253,7 +253,7 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
         }
     }
 
-    fun initConeLights() {
+    private fun initConeLights() {
         clearLights()
         for (i in 0 until NUM_BALLS) {
             val light = ConeLight(
@@ -274,7 +274,7 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
         }
     }
 
-    fun initChainLights() {
+    private fun initChainLights() {
         clearLights()
         for (i in 0 until NUM_BALLS) {
             val light = ChainLight(
@@ -295,7 +295,7 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
         }
     }
 
-    fun initDirectionalLight() {
+    private fun initDirectionalLight() {
         clearLights()
 
         groundBody!!.isActive = false
@@ -323,14 +323,14 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
     private fun createPhysicsWorld() {
         world = World(Vector2(0f, 0f), true)
 
-        val halfWidth = viewportWidth / 2f
+        val halfWidth = VIEWPORT_WIDTH / 2f
         val chainShape = ChainShape()
         chainShape.createLoop(
             arrayOf(
                 Vector2(-halfWidth, 0f),
                 Vector2(halfWidth, 0f),
-                Vector2(halfWidth, viewportHeight),
-                Vector2(-halfWidth, viewportHeight)
+                Vector2(halfWidth, VIEWPORT_HEIGHT),
+                Vector2(-halfWidth, VIEWPORT_HEIGHT)
             )
         )
         val chainBodyDef = BodyDef()
@@ -385,10 +385,10 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
             def.bodyB = hitBody
             def.collideConnected = true
             def.target[testPoint.x] = testPoint.y
-            def.maxForce = 1000.0f * hitBody!!.getMass()
+            def.maxForce = 1000.0f * hitBody!!.mass
 
             mouseJoint = world!!.createJoint(def) as MouseJoint
-            hitBody?.setAwake(true)
+            hitBody?.isAwake = true
         }
 
         return false
@@ -520,8 +520,8 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
         const val LIGHT_DISTANCE: Float = 16f
         const val RADIUS: Float = 1f
 
-        const val viewportWidth: Float = 48f
-        const val viewportHeight: Float = 32f
+        const val VIEWPORT_WIDTH: Float = 48f
+        const val VIEWPORT_HEIGHT: Float = 32f
         private const val MAX_FPS = 30
         const val TIME_STEP: Float = 1f / MAX_FPS
         private const val MIN_FPS = 15
