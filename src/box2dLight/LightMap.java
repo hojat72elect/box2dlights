@@ -1,7 +1,5 @@
 package box2dLight;
 
-import shaders.*;
-
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
@@ -11,221 +9,216 @@ import com.badlogic.gdx.graphics.VertexAttribute;
 import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import shaders.*;
 
 class LightMap {
-	private ShaderProgram shadowShader;
-	FrameBuffer frameBuffer;
-	private Mesh lightMapMesh;
+    static public final int VERT_SIZE = 16;
+    static public final int X1 = 0;
+    static public final int Y1 = 1;
+    static public final int U1 = 2;
+    static public final int V1 = 3;
+    static public final int X2 = 4;
+    static public final int Y2 = 5;
+    static public final int U2 = 6;
+    static public final int V2 = 7;
+    static public final int X3 = 8;
+    static public final int Y3 = 9;
+    static public final int U3 = 10;
+    static public final int V3 = 11;
+    static public final int X4 = 12;
+    static public final int Y4 = 13;
+    static public final int U4 = 14;
+    static public final int V4 = 15;
+    private final int fboWidth, fboHeight;
+    private final Mesh lightMapMesh;
+    private final FrameBuffer pingPongBuffer;
+    private final RayHandler rayHandler;
+    FrameBuffer frameBuffer;
+    FrameBuffer shadowBuffer;
+    boolean lightMapDrawingDisabled;
+    private ShaderProgram shadowShader;
+    private ShaderProgram withoutShadowShader;
+    private ShaderProgram blurShader;
+    private ShaderProgram diffuseShader;
 
-	private FrameBuffer pingPongBuffer;
+    public LightMap(RayHandler rayHandler, int fboWidth, int fboHeight) {
+        this.rayHandler = rayHandler;
 
-	private RayHandler rayHandler;
-	private ShaderProgram withoutShadowShader;
-	private ShaderProgram blurShader;
-	private ShaderProgram diffuseShader;
+        if (fboWidth <= 0)
+            fboWidth = 1;
+        if (fboHeight <= 0)
+            fboHeight = 1;
 
-	FrameBuffer shadowBuffer;
+        this.fboWidth = fboWidth;
+        this.fboHeight = fboHeight;
 
-	boolean lightMapDrawingDisabled;
+        frameBuffer = new FrameBuffer(Format.RGBA8888, fboWidth,
+                fboHeight, false);
+        pingPongBuffer = new FrameBuffer(Format.RGBA8888, fboWidth,
+                fboHeight, false);
+        shadowBuffer = new FrameBuffer(Format.RGBA8888, fboWidth,
+                fboHeight, false);
 
-	private final int fboWidth, fboHeight;
+        lightMapMesh = createLightMapMesh();
 
-	public LightMap(RayHandler rayHandler, int fboWidth, int fboHeight) {
-		this.rayHandler = rayHandler;
+        createShaders();
+    }
 
-		if (fboWidth <= 0)
-			fboWidth = 1;
-		if (fboHeight <= 0)
-			fboHeight = 1;
+    public void render() {
+        boolean needed = rayHandler.lightRenderedLastFrame > 0;
 
-		this.fboWidth = fboWidth;
-		this.fboHeight = fboHeight;
+        if (lightMapDrawingDisabled)
+            return;
 
-		frameBuffer = new FrameBuffer(Format.RGBA8888, fboWidth,
-				fboHeight, false);
-		pingPongBuffer = new FrameBuffer(Format.RGBA8888, fboWidth,
-				fboHeight, false);
-		shadowBuffer = new FrameBuffer(Format.RGBA8888, fboWidth,
-				fboHeight, false);
+        if (rayHandler.pseudo3d) {
+            frameBuffer.getColorBufferTexture().bind(1);
+            shadowBuffer.getColorBufferTexture().bind(0);
+        } else {
+            frameBuffer.getColorBufferTexture().bind(0);
+        }
 
-		lightMapMesh = createLightMapMesh();
+        // at last lights are rendered over scene
+        if (rayHandler.shadows) {
+            final Color c = rayHandler.ambientLight;
+            ShaderProgram shader = shadowShader;
+            if (rayHandler.pseudo3d) {
+                shader.bind();
+                if (RayHandler.isDiffuse) {
+                    rayHandler.diffuseBlendFunc.apply();
+                    shader.setUniformf("ambient", c.r, c.g, c.b, c.a);
+                } else {
+                    rayHandler.shadowBlendFunc.apply();
+                    shader.setUniformf("ambient", c.r * c.a, c.g * c.a,
+                            c.b * c.a, 1f - c.a);
+                }
+                shader.setUniformi("isDiffuse", RayHandler.isDiffuse ? 1 : 0);
+                shader.setUniformi("u_texture", 1);
+                shader.setUniformi("u_shadows", 0);
+            } else if (RayHandler.isDiffuse) {
+                shader = diffuseShader;
+                shader.bind();
+                rayHandler.diffuseBlendFunc.apply();
+                shader.setUniformf("ambient", c.r, c.g, c.b, c.a);
+            } else {
+                shader.bind();
+                rayHandler.shadowBlendFunc.apply();
+                shader.setUniformf("ambient", c.r * c.a, c.g * c.a,
+                        c.b * c.a, 1f - c.a);
+            }
 
-		createShaders();
-	}
+            lightMapMesh.render(shader, GL20.GL_TRIANGLE_FAN);
+        } else if (needed) {
+            rayHandler.simpleBlendFunc.apply();
+            withoutShadowShader.bind();
 
-	public void render() {
-		boolean needed = rayHandler.lightRenderedLastFrame > 0;
+            lightMapMesh.render(withoutShadowShader, GL20.GL_TRIANGLE_FAN);
+        }
 
-		if (lightMapDrawingDisabled)
-			return;
+        Gdx.gl20.glDisable(GL20.GL_BLEND);
+    }
 
-		if (rayHandler.pseudo3d) {
-			frameBuffer.getColorBufferTexture().bind(1);
-			shadowBuffer.getColorBufferTexture().bind(0);
-		} else {
-			frameBuffer.getColorBufferTexture().bind(0);
-		}
+    public void gaussianBlur(FrameBuffer buffer, int blurNum) {
+        Gdx.gl20.glDisable(GL20.GL_BLEND);
+        for (int i = 0; i < blurNum; i++) {
+            buffer.getColorBufferTexture().bind(0);
+            // horizontal
+            pingPongBuffer.begin();
+            {
+                blurShader.bind();
+                blurShader.setUniformf("dir", 1f, 0f);
+                lightMapMesh.render(blurShader, GL20.GL_TRIANGLE_FAN, 0, 4);
 
-		// at last lights are rendered over scene
-		if (rayHandler.shadows) {
-			final Color c = rayHandler.ambientLight;
-			ShaderProgram shader = shadowShader;
-			if (rayHandler.pseudo3d) {
-				shader.bind();
-				if (RayHandler.isDiffuse) {
-					rayHandler.diffuseBlendFunc.apply();
-					shader.setUniformf("ambient", c.r, c.g, c.b, c.a);
-				} else {
-					rayHandler.shadowBlendFunc.apply();
-					shader.setUniformf("ambient", c.r * c.a, c.g * c.a,
-							c.b * c.a, 1f - c.a);
-				}
-				shader.setUniformi("isDiffuse", RayHandler.isDiffuse ? 1 : 0);
-				shader.setUniformi("u_texture", 1);
-				shader.setUniformi("u_shadows", 0);
-			} else if (RayHandler.isDiffuse) {
-				shader = diffuseShader;
-				shader.bind();
-				rayHandler.diffuseBlendFunc.apply();
-				shader.setUniformf("ambient", c.r, c.g, c.b, c.a);
-			} else {
-				shader.bind();
-				rayHandler.shadowBlendFunc.apply();
-				shader.setUniformf("ambient", c.r * c.a, c.g * c.a,
-						c.b * c.a, 1f - c.a);
-			}
+            }
+            pingPongBuffer.end();
 
-			lightMapMesh.render(shader, GL20.GL_TRIANGLE_FAN);
-		} else if (needed) {
-			rayHandler.simpleBlendFunc.apply();
-			withoutShadowShader.bind();
+            pingPongBuffer.getColorBufferTexture().bind(0);
+            // vertical
+            buffer.begin();
+            {
+                blurShader.bind();
+                blurShader.setUniformf("dir", 0f, 1f);
+                lightMapMesh.render(blurShader, GL20.GL_TRIANGLE_FAN, 0, 4);
+            }
+            if (rayHandler.customViewport) {
+                buffer.end(
+                        rayHandler.viewportX,
+                        rayHandler.viewportY,
+                        rayHandler.viewportWidth,
+                        rayHandler.viewportHeight);
+            } else {
+                buffer.end();
+            }
+        }
 
-			lightMapMesh.render(withoutShadowShader, GL20.GL_TRIANGLE_FAN);
-		}
+        Gdx.gl20.glEnable(GL20.GL_BLEND);
+    }
 
-		Gdx.gl20.glDisable(GL20.GL_BLEND);
-	}
+    void dispose() {
+        disposeShaders();
 
-	public void gaussianBlur(FrameBuffer buffer, int blurNum) {
-		Gdx.gl20.glDisable(GL20.GL_BLEND);
-		for (int i = 0; i < blurNum; i++) {
-			buffer.getColorBufferTexture().bind(0);
-			// horizontal
-			pingPongBuffer.begin();
-			{
-				blurShader.bind();
-				blurShader.setUniformf("dir", 1f, 0f);
-				lightMapMesh.render(blurShader, GL20.GL_TRIANGLE_FAN, 0, 4);
+        lightMapMesh.dispose();
 
-			}
-			pingPongBuffer.end();
+        frameBuffer.dispose();
+        shadowBuffer.dispose();
+        pingPongBuffer.dispose();
+    }
 
-			pingPongBuffer.getColorBufferTexture().bind(0);
-			// vertical
-			buffer.begin();
-			{
-				blurShader.bind();
-				blurShader.setUniformf("dir", 0f, 1f);
-				lightMapMesh.render(blurShader, GL20.GL_TRIANGLE_FAN, 0, 4);
-			}
-			if (rayHandler.customViewport) {
-				buffer.end(
-					rayHandler.viewportX,
-					rayHandler.viewportY,
-					rayHandler.viewportWidth,
-					rayHandler.viewportHeight);
-			} else {
-				buffer.end();
-			}
-		}
+    void createShaders() {
+        disposeShaders();
 
-		Gdx.gl20.glEnable(GL20.GL_BLEND);
-	}
+        shadowShader = rayHandler.pseudo3d ? DynamicShadowShader.createShadowShader() : ShadowShader.createShadowShader();
+        diffuseShader = DiffuseShader.createShadowShader();
 
-	void dispose() {
-		disposeShaders();
+        withoutShadowShader = WithoutShadowShader.createShadowShader();
 
-		lightMapMesh.dispose();
+        blurShader = Gaussian.createBlurShader(fboWidth, fboHeight);
+    }
 
-		frameBuffer.dispose();
-		shadowBuffer.dispose();
-		pingPongBuffer.dispose();
-	}
+    private void disposeShaders() {
+        if (shadowShader != null)
+            shadowShader.dispose();
+        if (diffuseShader != null)
+            diffuseShader.dispose();
+        if (withoutShadowShader != null)
+            withoutShadowShader.dispose();
+        if (blurShader != null)
+            blurShader.dispose();
+    }
 
-	void createShaders() {
-		disposeShaders();
+    private Mesh createLightMapMesh() {
+        float[] vertices = new float[VERT_SIZE];
+        // vertex co-ordinations
+        vertices[X1] = -1;
+        vertices[Y1] = -1;
 
-		shadowShader = rayHandler.pseudo3d ? DynamicShadowShader.createShadowShader() : ShadowShader.createShadowShader();
-		diffuseShader = DiffuseShader.createShadowShader();
+        vertices[X2] = 1;
+        vertices[Y2] = -1;
 
-		withoutShadowShader = WithoutShadowShader.createShadowShader();
+        vertices[X3] = 1;
+        vertices[Y3] = 1;
 
-		blurShader = Gaussian.createBlurShader(fboWidth, fboHeight);
-	}
+        vertices[X4] = -1;
+        vertices[Y4] = 1;
 
-	private void disposeShaders() {
-		if (shadowShader != null)
-			shadowShader.dispose();
-		if (diffuseShader != null)
-			diffuseShader.dispose();
-		if (withoutShadowShader != null)
-			withoutShadowShader.dispose();
-		if (blurShader != null)
-			blurShader.dispose();
-	}
+        // tex coords
+        vertices[U1] = 0f;
+        vertices[V1] = 0f;
 
-	private Mesh createLightMapMesh() {
-		float[] verts = new float[VERT_SIZE];
-		// vertex coord
-		verts[X1] = -1;
-		verts[Y1] = -1;
+        vertices[U2] = 1f;
+        vertices[V2] = 0f;
 
-		verts[X2] = 1;
-		verts[Y2] = -1;
+        vertices[U3] = 1f;
+        vertices[V3] = 1f;
 
-		verts[X3] = 1;
-		verts[Y3] = 1;
+        vertices[U4] = 0f;
+        vertices[V4] = 1f;
 
-		verts[X4] = -1;
-		verts[Y4] = 1;
+        Mesh tmpMesh = new Mesh(true, 4, 0, new VertexAttribute(
+                Usage.Position, 2, "a_position"), new VertexAttribute(
+                Usage.TextureCoordinates, 2, "a_texCoord"));
 
-		// tex coords
-		verts[U1] = 0f;
-		verts[V1] = 0f;
+        tmpMesh.setVertices(vertices);
+        return tmpMesh;
 
-		verts[U2] = 1f;
-		verts[V2] = 0f;
-
-		verts[U3] = 1f;
-		verts[V3] = 1f;
-
-		verts[U4] = 0f;
-		verts[V4] = 1f;
-
-		Mesh tmpMesh = new Mesh(true, 4, 0, new VertexAttribute(
-				Usage.Position, 2, "a_position"), new VertexAttribute(
-				Usage.TextureCoordinates, 2, "a_texCoord"));
-
-		tmpMesh.setVertices(verts);
-		return tmpMesh;
-
-	}
-
-	static public final int VERT_SIZE = 16;
-	static public final int X1 = 0;
-	static public final int Y1 = 1;
-	static public final int U1 = 2;
-	static public final int V1 = 3;
-	static public final int X2 = 4;
-	static public final int Y2 = 5;
-	static public final int U2 = 6;
-	static public final int V2 = 7;
-	static public final int X3 = 8;
-	static public final int Y3 = 9;
-	static public final int U3 = 10;
-	static public final int V3 = 11;
-	static public final int X4 = 12;
-	static public final int Y4 = 13;
-	static public final int U4 = 14;
-	static public final int V4 = 15;
+    }
 }
