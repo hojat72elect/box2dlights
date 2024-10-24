@@ -57,15 +57,15 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
     private var showText: Boolean = true
 
     private var rayHandler: RayHandler? = null
-    private var lights: ArrayList<Light> = ArrayList(NUM_BALLS)
-    private var sunDirection: Float = -90f
-    private var physicsTimeLeft: Float = 0f
-    private var aika: Long = 0
-    var times: Int = 0
+    private var lights = ArrayList<Light>(NUM_BALLS)
+    private var sunDirection = -90f
+    private var physicsTimeLeft = 0f
+    private var aika = 0L
+    var times = 0
 
     // we instantiate this vector and the callback here so we don't irritate the GC
-    private var testPoint: Vector3 = Vector3()
-    private var callback: QueryCallback = QueryCallback { fixture ->
+    private var testPoint = Vector3()
+    private var callback = QueryCallback { fixture ->
         if (fixture.body === groundBody) return@QueryCallback true
         if (fixture.testPoint(testPoint.x, testPoint.y)) {
             hitBody = fixture.body
@@ -74,7 +74,7 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
     }
 
     //  another temporary vector
-    private var target: Vector2 = Vector2()
+    private var target = Vector2()
 
     /**
      * This test introduces 4 types of lights:
@@ -83,7 +83,7 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
      * 2 - ChainLight
      * 3 - DirectionalLight
      */
-    private var lightsType: Int = 0
+    private var lightsType = 0
 
     override fun create() {
         Gdx.app.logLevel = Application.LOG_DEBUG
