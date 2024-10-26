@@ -537,9 +537,6 @@ class Box2dLightTest2 : InputAdapter(), ApplicationListener {
 fun main() {
     val config = LwjglApplicationConfiguration()
 
-
-
-
     config.title = "box2d lights test"
     config.width = 800
     config.height = 480
