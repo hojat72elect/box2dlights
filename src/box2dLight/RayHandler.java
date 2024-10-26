@@ -236,7 +236,8 @@ public class RayHandler implements Disposable {
                 camera.position.x,
                 camera.position.y,
                 camera.viewportWidth * camera.zoom,
-                camera.viewportHeight * camera.zoom);
+                camera.viewportHeight * camera.zoom
+        );
     }
 
     /**
@@ -291,7 +292,8 @@ public class RayHandler implements Disposable {
      * @see #setCombinedMatrix(OrthographicCamera)
      */
     public void setCombinedMatrix(Matrix4 combined, float x, float y,
-                                  float viewPortWidth, float viewPortHeight) {
+                                  float viewPortWidth, float viewPortHeight
+    ) {
 
         System.arraycopy(combined.val, 0, this.combined.val, 0, 16);
         // updateCameraCorners
@@ -395,7 +397,8 @@ public class RayHandler implements Disposable {
                         viewportX,
                         viewportY,
                         viewportWidth,
-                        viewportHeight);
+                        viewportHeight
+                );
             } else {
                 lightMap.frameBuffer.end();
             }
@@ -415,7 +418,8 @@ public class RayHandler implements Disposable {
                         viewportX,
                         viewportY,
                         viewportWidth,
-                        viewportHeight);
+                        viewportHeight
+                );
             } else {
                 lightMap.shadowBuffer.end();
             }
