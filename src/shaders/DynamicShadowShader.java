@@ -6,15 +6,17 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 
 public class DynamicShadowShader {
     static public ShaderProgram createShadowShader() {
-        final String vertexShader = "attribute vec4 a_position;\n"
-                + "attribute vec2 a_texCoord;\n"
-                + "varying vec2 v_texCoords;\n"
-                + "\n"
-                + "void main()\n"
-                + "{\n"
-                + "   v_texCoords = a_texCoord;\n"
-                + "   gl_Position = a_position;\n"
-                + "}\n";
+        final String vertexShader = """
+                attribute vec4 a_position;
+                attribute vec2 a_texCoord;
+                varying vec2 v_texCoords;
+                
+                void main()
+                {
+                   v_texCoords = a_texCoord;
+                   gl_Position = a_position;
+                }
+                """;
 
         // this is always perfect precision
         final String fragmentShader = "#ifdef GL_ES\n"
@@ -46,11 +48,15 @@ public class DynamicShadowShader {
                 + "}\n"
                 + "}\n";
         ShaderProgram.pedantic = false;
-        ShaderProgram shadowShader = new ShaderProgram(vertexShader,
-                fragmentShader);
+        ShaderProgram shadowShader = new ShaderProgram(
+                vertexShader,
+                fragmentShader
+        );
         if (!shadowShader.isCompiled()) {
-            shadowShader = new ShaderProgram("#version 330 core\n" + vertexShader,
-                    "#version 330 core\n" + fragmentShader);
+            shadowShader = new ShaderProgram(
+                    "#version 330 core\n" + vertexShader,
+                    "#version 330 core\n" + fragmentShader
+            );
             if (!shadowShader.isCompiled()) {
                 Gdx.app.log("ERROR", shadowShader.getLog());
             }

@@ -61,11 +61,15 @@ public class Gaussian {
                 + "				+ far    * texture2D(u_texture, v_texCoords4)" + rgb + ";\n"
                 + "}\n";
         ShaderProgram.pedantic = false;
-        ShaderProgram blurShader = new ShaderProgram(vertexShader,
-                fragmentShader);
+        ShaderProgram blurShader = new ShaderProgram(
+                vertexShader,
+                fragmentShader
+        );
         if (!blurShader.isCompiled()) {
-            blurShader = new ShaderProgram("#version 330 core\n" + vertexShader,
-                    "#version 330 core\n" + fragmentShader);
+            blurShader = new ShaderProgram(
+                    "#version 330 core\n" + vertexShader,
+                    "#version 330 core\n" + fragmentShader
+            );
             if (!blurShader.isCompiled()) {
                 Gdx.app.log("ERROR", blurShader.getLog());
             }
