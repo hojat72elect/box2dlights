@@ -3,6 +3,11 @@ package shaders;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 
+/**
+ * a diffuse shader is a type of shader that calculates the color of a surface based on how it interacts with light.
+ * It simulates the scattering of light that occurs when light hits a matte or rough surface. This scattering
+ * results in a soft, diffused reflection that makes objects appear more realistic.
+ */
 public class DiffuseShader {
     static public ShaderProgram createShadowShader() {
         final String vertexShader = """
